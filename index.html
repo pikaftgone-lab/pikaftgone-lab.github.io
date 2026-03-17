@@ -468,160 +468,333 @@
   (function () {
     'use strict';
 
-    const hero = document.querySelector('.hero');
+    var hero = document.querySelector('.hero');
 
-    // ── Canvas ──────────────────────────────────────────────────────────────
-    const canvas = document.createElement('canvas');
+    // ── Canvas ───────────────────────────────────────────────────────────────
+    var canvas = document.createElement('canvas');
     canvas.style.cssText =
       'position:absolute;top:0;left:0;width:100%;height:100%;' +
       'z-index:0;pointer-events:none;display:block;';
     hero.insertBefore(canvas, hero.firstChild);
 
-    // ── Renderer / Scene / Camera ────────────────────────────────────────────
-    function heroSize() {
-      return { w: hero.offsetWidth, h: hero.offsetHeight };
-    }
-    const { w, h } = heroSize();
+    function heroSize() { return { w: hero.offsetWidth, h: hero.offsetHeight }; }
+    var sz = heroSize();
 
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: true,
-      antialias: false,
-      powerPreference: 'low-power'
+    // ── Renderer ─────────────────────────────────────────────────────────────
+    var renderer = new THREE.WebGLRenderer({
+      canvas: canvas, alpha: true, antialias: false, powerPreference: 'low-power'
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    renderer.setSize(w, h);
+    renderer.setSize(sz.w, sz.h);
     renderer.setClearColor(0x000000, 0);
 
-    const scene  = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
+    var scene  = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(60, sz.w / sz.h, 0.1, 1000);
     camera.position.z = 38;
 
-    // ── Colour palette ───────────────────────────────────────────────────────
-    // white 50 %, electric-blue 30 %, emerald-green 20 %
-    const PALETTE = [
-      [1,     1,     1    ],   // white
-      [0.118, 0.251, 0.686],   // #1e40af electric blue
-      [0.020, 0.588, 0.412],   // #059669 emerald green
+    // ── Mouse tracking ────────────────────────────────────────────────────────
+    // NDC coords (-1..1). Start at (0,0) so rings begin neutral.
+    var mouseNDC  = new THREE.Vector2(0, 0);
+    var mouse3D   = new THREE.Vector3(9999, 9999, 0); // far away = no repulsion at start
+    var mouseOver = false;
+
+    // Reuse vectors to avoid GC pressure
+    var _unproj = new THREE.Vector3();
+    var _dir    = new THREE.Vector3();
+
+    document.addEventListener('mousemove', function (e) {
+      var rect = hero.getBoundingClientRect();
+      var inHero = e.clientX >= rect.left && e.clientX <= rect.right &&
+                   e.clientY >= rect.top  && e.clientY <= rect.bottom;
+      if (!inHero) {
+        mouseOver = false;
+        mouse3D.set(9999, 9999, 0);
+        return;
+      }
+      mouseOver = true;
+      mouseNDC.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+      mouseNDC.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+
+      // Unproject mouse onto the z = 0 plane in world space
+      _unproj.set(mouseNDC.x, mouseNDC.y, 0.5).unproject(camera);
+      _dir.copy(_unproj).sub(camera.position).normalize();
+      var t = -camera.position.z / _dir.z;
+      mouse3D.copy(camera.position).addScaledVector(_dir, t);
+    }, { passive: true });
+
+    // ── Colour palette ────────────────────────────────────────────────────────
+    // CYAN #00d4ff, GREEN #00ff88, PURPLE #7c3aed, WHITE
+    // Weighted pool: 2 white, 2 cyan, 2 green, 1 purple → balanced, no blue dominance
+    var PAL = [
+      [1.000, 1.000, 1.000],   // white
+      [1.000, 1.000, 1.000],   // white
+      [0.000, 0.831, 1.000],   // cyan  #00d4ff
+      [0.000, 0.831, 1.000],   // cyan
+      [0.000, 1.000, 0.533],   // green #00ff88
+      [0.000, 1.000, 0.533],   // green
+      [0.486, 0.227, 0.929],   // purple #7c3aed
     ];
 
-    // ── Particles ────────────────────────────────────────────────────────────
-    const COUNT   = 80;
-    const BOUND   = { x: 55, y: 38, z: 28 };
+    // ── Particles ─────────────────────────────────────────────────────────────
+    var COUNT    = 80;
+    var BOUND    = { x: 60, y: 40, z: 30 };
+    var MAX_SPD  = 0.08;
+    var REPEL_R  = 10;
+    var REPEL_R2 = REPEL_R * REPEL_R;
 
-    const pPos = new Float32Array(COUNT * 3);
-    const pVel = new Float32Array(COUNT * 3);
-    const pCol = new Float32Array(COUNT * 3);
+    var pPos  = new Float32Array(COUNT * 3);
+    var pVel  = new Float32Array(COUNT * 3);
+    var pBase = new Float32Array(COUNT * 3);
+    var pCol  = new Float32Array(COUNT * 3);
 
-    for (let i = 0; i < COUNT; i++) {
-      const i3 = i * 3;
+    for (var i = 0; i < COUNT; i++) {
+      var i3 = i * 3;
       pPos[i3]     = (Math.random() - 0.5) * BOUND.x;
       pPos[i3 + 1] = (Math.random() - 0.5) * BOUND.y;
       pPos[i3 + 2] = (Math.random() - 0.5) * BOUND.z;
 
-      pVel[i3]     = (Math.random() - 0.5) * 0.022;
-      pVel[i3 + 1] = (Math.random() - 0.5) * 0.018;
-      pVel[i3 + 2] = (Math.random() - 0.5) * 0.012;
+      var spd = 0.013 + Math.random() * 0.011;
+      pBase[i3]     = pVel[i3]     = (Math.random() - 0.5) * spd;
+      pBase[i3 + 1] = pVel[i3 + 1] = (Math.random() - 0.5) * spd * 0.8;
+      pBase[i3 + 2] = pVel[i3 + 2] = (Math.random() - 0.5) * spd * 0.55;
 
-      const r = Math.random();
-      const c = r < 0.50 ? PALETTE[0] : r < 0.80 ? PALETTE[1] : PALETTE[2];
+      var c = PAL[Math.floor(Math.random() * PAL.length)];
       pCol[i3] = c[0]; pCol[i3 + 1] = c[1]; pCol[i3 + 2] = c[2];
     }
 
-    const pGeo = new THREE.BufferGeometry();
+    var pGeo = new THREE.BufferGeometry();
     pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
     pGeo.setAttribute('color',    new THREE.BufferAttribute(pCol, 3));
 
     scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
-      size: 0.38,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.85,
-      sizeAttenuation: true,
-      depthWrite: false
+      size: 0.42, vertexColors: true, transparent: true, opacity: 0.90,
+      sizeAttenuation: true, depthWrite: false,
+      blending: THREE.AdditiveBlending
     })));
 
-    // ── Network lines ────────────────────────────────────────────────────────
-    const MAX_PAIRS = (COUNT * (COUNT - 1)) / 2;   // 3160
-    const lPos = new Float32Array(MAX_PAIRS * 6);
+    // ── Network lines (vertex colors → cyan-green gradient, mouse brighten) ───
+    var MAX_PAIRS  = (COUNT * (COUNT - 1)) / 2;  // 3160
+    var CONN_R2    = 14 * 14;
+    var MBRIGHT_R2 = 11 * 11;  // mouse brightening radius²
 
-    const lGeo = new THREE.BufferGeometry();
+    var lPos = new Float32Array(MAX_PAIRS * 6);
+    var lCol = new Float32Array(MAX_PAIRS * 6);
+
+    var lGeo = new THREE.BufferGeometry();
     lGeo.setAttribute('position', new THREE.BufferAttribute(lPos, 3));
+    lGeo.setAttribute('color',    new THREE.BufferAttribute(lCol, 3));
     lGeo.setDrawRange(0, 0);
 
     scene.add(new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({
-      color: 0x2563eb,
-      transparent: true,
-      opacity: 0.20,
-      depthWrite: false
+      vertexColors: true, transparent: true, opacity: 0.55,
+      depthWrite: false, blending: THREE.AdditiveBlending
     })));
 
-    const MAX_DIST_SQ = 14 * 14;   // connection threshold²
-
-    // ── Torus rings ──────────────────────────────────────────────────────────
-    const RING_CONFIGS = [
-      // radius, tube,  radSeg, tubeSeg, colour,    opacity,  x,  y,   z,    rx,      ry
-      [  13,     0.07,  6,      60,      0x1e40af,  0.22,    -5,  3,  -12,   0.0018, 0.0009  ],
-      [   9,     0.06,  6,      44,      0x059669,  0.20,     8, -4,   -6,  -0.0010, 0.0024  ],
-      [  19,     0.05,  6,      80,      0x3b82f6,  0.13,     2,  1,  -20,   0.0013,-0.0016  ],
+    // ── Torus rings (tilted 3D orbital system) ────────────────────────────────
+    // Columns: r, tube, rSeg, tSeg, color, opacity, x, y, z, baseRotX, baseRotZ, spinRx, spinRy
+    var RING_DEF = [
+      [ 12, 0.07, 6, 64, 0x00d4ff, 0.32,  -5,  2, -10,   0.80,  0.30,  0.0020,  0.0010 ],  // cyan
+      [  8, 0.06, 6, 48, 0x00ff88, 0.30,   7, -3,  -6,   0.30,  1.10, -0.0012,  0.0022 ],  // green
+      [ 17, 0.05, 6, 80, 0x7c3aed, 0.22,   1,  1, -18,   1.40,  0.60,  0.0015, -0.0018 ],  // purple
     ];
 
-    const rings = RING_CONFIGS.map(cfg => {
-      const geo = new THREE.TorusGeometry(cfg[0], cfg[1], cfg[2], cfg[3]);
-      const mat = new THREE.MeshBasicMaterial({
-        color:       cfg[4],
-        wireframe:   true,
-        transparent: true,
-        opacity:     cfg[5],
-        depthWrite:  false
+    var rings = RING_DEF.map(function (cfg) {
+      var geo = new THREE.TorusGeometry(cfg[0], cfg[1], cfg[2], cfg[3]);
+      var mat = new THREE.MeshBasicMaterial({
+        color: cfg[4], wireframe: true, transparent: true, opacity: cfg[5],
+        depthWrite: false, blending: THREE.AdditiveBlending
       });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(cfg[6], cfg[7], cfg[8]);
-      mesh.rotation.x = Math.random() * Math.PI;
-      mesh.rotation.y = Math.random() * Math.PI;
-      mesh.userData   = { rx: cfg[9], ry: cfg[10] };
-      scene.add(mesh);
-      return mesh;
+      var m = new THREE.Mesh(geo, mat);
+      m.position.set(cfg[6], cfg[7], cfg[8]);
+      m.userData = {
+        spinRx: cfg[11], spinRy: cfg[12],
+        baseX: cfg[9],   baseZ: cfg[10],
+        spinX: 0,        spinY: 0,
+        tiltX: 0,        tiltZ: 0
+      };
+      scene.add(m);
+      return m;
     });
 
-    // ── Animation loop ───────────────────────────────────────────────────────
+    // ── Wireframe spheres (globe / sustainability) ────────────────────────────
+    // Placed behind rings (larger negative z), slow rotation, green/cyan
+    // Columns: r, wSeg, hSeg, color, opacity, x, y, z, spinRx, spinRy
+    var SPHERE_DEF = [
+      [ 11,  10,  8, 0x00ff88, 0.11, -19,  5, -26,  0.0007,  0.0011 ],
+      [  7,  10,  8, 0x00d4ff, 0.09,  16, -6, -21, -0.0009,  0.0007 ],
+      [ 14,  10,  8, 0x00ff88, 0.07,   4, 10, -33,  0.0005, -0.0009 ],
+    ];
+
+    var spheres = SPHERE_DEF.map(function (cfg) {
+      var geo = new THREE.SphereGeometry(cfg[0], cfg[1], cfg[2]);
+      var mat = new THREE.MeshBasicMaterial({
+        color: cfg[3], wireframe: true, transparent: true, opacity: cfg[4],
+        depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      var m = new THREE.Mesh(geo, mat);
+      m.position.set(cfg[5], cfg[6], cfg[7]);
+      m.rotation.x = Math.random() * Math.PI;
+      m.rotation.y = Math.random() * Math.PI;
+      m.userData = { rx: cfg[8], ry: cfg[9] };
+      scene.add(m);
+      return m;
+    });
+
+    // ── Sci-fi horizon grid ───────────────────────────────────────────────────
+    // Perspective grid on XZ plane, glowing cyan, fading to black in the distance
+    (function buildGrid() {
+      var verts = [], cols = [];
+      var W = 72, D = 58, xN = 22, zN = 20;
+      // Cyan components
+      var cr = 0.000, cg = 0.831, cb = 1.000;
+
+      // Lines going into the distance (depth lines — they converge to vanishing point)
+      for (var xi = 0; xi <= xN; xi++) {
+        var x  = -W * 0.5 + (W / xN) * xi;
+        var ef = Math.max(0, 1.05 - Math.abs(x) / (W * 0.5)); // edge fade
+        // Near vertex (bright)
+        verts.push(x, 0,  0);  cols.push(cr * ef * 0.7, cg * ef * 0.7, cb * ef * 0.7);
+        // Far vertex (black — naturally fades in distance via perspective)
+        verts.push(x, 0, -D);  cols.push(0, 0, 0);
+      }
+
+      // Horizontal bands (spacing appears to compress into distance — this is natural with perspective)
+      for (var zi = 0; zi <= zN; zi++) {
+        var z  = -(D / zN) * zi;
+        var df = Math.pow(Math.max(0, 1 - zi / zN), 1.3) * 0.6;
+        verts.push(-W * 0.5, 0, z);  cols.push(cr * df, cg * df, cb * df);
+        verts.push( W * 0.5, 0, z);  cols.push(cr * df, cg * df, cb * df);
+      }
+
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+      geo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(cols),  3));
+
+      var mesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+        vertexColors: true, transparent: true, opacity: 0.65,
+        depthWrite: false, blending: THREE.AdditiveBlending
+      }));
+
+      // Place at bottom of hero, extend toward -Z (depth)
+      // Slight forward tilt (rotation.x) makes horizontal bands appear to converge
+      mesh.position.set(0, -15, 8);
+      mesh.rotation.x = -0.13;
+
+      scene.add(mesh);
+    }());
+
+    // ── Animation loop ────────────────────────────────────────────────────────
+    function sat(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
     function animate() {
       requestAnimationFrame(animate);
 
-      // Move particles + bounce
-      for (let i = 0; i < COUNT; i++) {
-        const i3 = i * 3;
+      var i, i3, dx, dy, dsq, d, f, sp;
+
+      // — Particles: repel from mouse, damp back to base velocity, bounce —
+      for (i = 0; i < COUNT; i++) {
+        i3 = i * 3;
+        dx  = pPos[i3]     - mouse3D.x;
+        dy  = pPos[i3 + 1] - mouse3D.y;
+        dsq = dx * dx + dy * dy;
+
+        if (dsq < REPEL_R2) {
+          d = Math.sqrt(dsq) + 0.001;
+          f = ((REPEL_R - d) / REPEL_R) * 0.048;
+          pVel[i3]     += (dx / d) * f;
+          pVel[i3 + 1] += (dy / d) * f;
+        }
+
+        // Gently damp velocity back toward original base
+        pVel[i3]     += (pBase[i3]     - pVel[i3])     * 0.018;
+        pVel[i3 + 1] += (pBase[i3 + 1] - pVel[i3 + 1]) * 0.018;
+
+        // Speed cap
+        sp = pVel[i3] * pVel[i3] + pVel[i3 + 1] * pVel[i3 + 1];
+        if (sp > MAX_SPD * MAX_SPD) {
+          var inv = MAX_SPD / Math.sqrt(sp);
+          pVel[i3]     *= inv;
+          pVel[i3 + 1] *= inv;
+        }
+
         pPos[i3]     += pVel[i3];
         pPos[i3 + 1] += pVel[i3 + 1];
         pPos[i3 + 2] += pVel[i3 + 2];
+
         if (Math.abs(pPos[i3])     > BOUND.x * 0.5) pVel[i3]     *= -1;
         if (Math.abs(pPos[i3 + 1]) > BOUND.y * 0.5) pVel[i3 + 1] *= -1;
         if (Math.abs(pPos[i3 + 2]) > BOUND.z * 0.5) pVel[i3 + 2] *= -1;
       }
       pGeo.attributes.position.needsUpdate = true;
 
-      // Rebuild network lines (only pairs within distance threshold)
-      let li = 0;
-      for (let i = 0; i < COUNT; i++) {
-        for (let j = i + 1; j < COUNT; j++) {
-          const ai = i * 3, aj = j * 3;
-          const dx = pPos[ai]   - pPos[aj];
-          const dy = pPos[ai+1] - pPos[aj+1];
-          const dz = pPos[ai+2] - pPos[aj+2];
-          if (dx*dx + dy*dy + dz*dz < MAX_DIST_SQ) {
-            lPos[li]   = pPos[ai];   lPos[li+1] = pPos[ai+1]; lPos[li+2] = pPos[ai+2];
-            lPos[li+3] = pPos[aj];   lPos[li+4] = pPos[aj+1]; lPos[li+5] = pPos[aj+2];
-            li += 6;
-          }
+      // — Network lines: vertex-color gradient from particle colors + mouse brightening —
+      var li = 0;
+      var ai, aj, alpha, midX, midY, mdx, mdy, mdsq, bright, b;
+
+      for (i = 0; i < COUNT; i++) {
+        for (var j = i + 1; j < COUNT; j++) {
+          ai = i * 3; aj = j * 3;
+          dx  = pPos[ai]     - pPos[aj];
+          dy  = pPos[ai + 1] - pPos[aj + 1];
+          var dz = pPos[ai + 2] - pPos[aj + 2];
+          dsq = dx * dx + dy * dy + dz * dz;
+          if (dsq >= CONN_R2) continue;
+
+          alpha = (1 - dsq / CONN_R2) * 0.60;
+
+          // Mouse proximity on midpoint → brighten lines near cursor
+          midX = (pPos[ai] + pPos[aj]) * 0.5;
+          midY = (pPos[ai + 1] + pPos[aj + 1]) * 0.5;
+          mdx  = midX - mouse3D.x;
+          mdy  = midY - mouse3D.y;
+          mdsq = mdx * mdx + mdy * mdy;
+          bright = mdsq < MBRIGHT_R2 ? 1 + (1 - mdsq / MBRIGHT_R2) * 2.2 : 1;
+
+          b = alpha * bright;
+
+          // Positions
+          lPos[li]     = pPos[ai];     lPos[li + 1] = pPos[ai + 1]; lPos[li + 2] = pPos[ai + 2];
+          lPos[li + 3] = pPos[aj];     lPos[li + 4] = pPos[aj + 1]; lPos[li + 5] = pPos[aj + 2];
+
+          // Vertex colors: each end of the line takes its particle's color → natural gradient
+          lCol[li]     = sat(pCol[ai]     * b);
+          lCol[li + 1] = sat(pCol[ai + 1] * b);
+          lCol[li + 2] = sat(pCol[ai + 2] * b);
+          lCol[li + 3] = sat(pCol[aj]     * b);
+          lCol[li + 4] = sat(pCol[aj + 1] * b);
+          lCol[li + 5] = sat(pCol[aj + 2] * b);
+
+          li += 6;
         }
       }
       lGeo.setDrawRange(0, li / 3);
       lGeo.attributes.position.needsUpdate = true;
+      lGeo.attributes.color.needsUpdate    = true;
 
-      // Rotate rings
-      rings.forEach(r => {
-        r.rotation.x += r.userData.rx;
-        r.rotation.y += r.userData.ry;
+      // — Rings: continuous spin + smooth mouse tilt —
+      var TILT = 0.28;
+      var targetX, targetZ;
+      rings.forEach(function (r) {
+        r.userData.spinX += r.userData.spinRx;
+        r.userData.spinY += r.userData.spinRy;
+
+        // Mouse tilt: lerp toward mouse NDC position scaled by TILT
+        // When mouse is not over hero, lerp back to 0
+        targetX = mouseOver ? mouseNDC.y * TILT : 0;
+        targetZ = mouseOver ? mouseNDC.x * TILT * 0.55 : 0;
+        r.userData.tiltX += (targetX - r.userData.tiltX) * 0.04;
+        r.userData.tiltZ += (targetZ - r.userData.tiltZ) * 0.04;
+
+        // Set rotation from components so values never accumulate incorrectly
+        r.rotation.x = r.userData.baseX + r.userData.spinX + r.userData.tiltX;
+        r.rotation.y = r.userData.spinY;
+        r.rotation.z = r.userData.baseZ + r.userData.tiltZ;
+      });
+
+      // — Spheres: slow continuous rotation —
+      spheres.forEach(function (s) {
+        s.rotation.x += s.userData.rx;
+        s.rotation.y += s.userData.ry;
       });
 
       renderer.render(scene, camera);
@@ -629,9 +802,9 @@
 
     animate();
 
-    // ── Resize ───────────────────────────────────────────────────────────────
+    // ── Resize ────────────────────────────────────────────────────────────────
     window.addEventListener('resize', function () {
-      const s = heroSize();
+      var s = heroSize();
       camera.aspect = s.w / s.h;
       camera.updateProjectionMatrix();
       renderer.setSize(s.w, s.h);
