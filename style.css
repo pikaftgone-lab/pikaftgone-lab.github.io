@@ -138,6 +138,8 @@ nav.scrolled .nav-cta {
   padding: 110px 5% 90px;
   background: #030d1a;   /* Three.js canvas paints over this — kept as fallback */
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .hero-bg-circle {
@@ -154,6 +156,7 @@ nav.scrolled .nav-cta {
   position: relative;
   z-index: 1;
   max-width: 820px;
+  background: none;
 }
 
 .hero-label {
