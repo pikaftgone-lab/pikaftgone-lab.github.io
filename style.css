@@ -136,7 +136,7 @@ nav.scrolled .nav-cta {
   display: flex;
   align-items: center;
   padding: 110px 5% 90px;
-  background: linear-gradient(140deg, var(--navy) 0%, #173ab0 55%, #1e5fd4 100%);
+  background: #030d1a;   /* Three.js canvas paints over this — kept as fallback */
   overflow: hidden;
 }
 
