@@ -465,25 +465,24 @@
   </script>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
-       THREE.JS HERO — CINEMATIC UNIVERSE
-       Background #030008 · Milky Way star field · purple/blue nebula
-       Cyan perspective floor grid · MeshPhongMaterial shapes
-       Core sun with heartbeat · flowing particles · drag resistance
-       Per-shape messages · Inter labels with vertical connectors
+       THREE.JS HERO — LIVING UNIVERSE (Phase 3: Galaxy + Burning Star)
+       Galaxy star field · nebula clusters · layered burning core
+       · 2× celestial bodies · drag hints · element-coloured drag messages
+       · flow particles · spring-back · cycling domain messages
   ═══════════════════════════════════════════════════════════════════════ -->
   <script>
   (function () {
     'use strict';
 
-    /* ── CSS keyframes ────────────────────────────────────────────────────── */
+    /* ── Inject animation keyframes ────────────────────────────────────────── */
     var _style = document.createElement('style');
     _style.textContent =
-      '@keyframes dragHintPulse{0%,100%{opacity:0.70}50%{opacity:0.12}}';
+      '@keyframes dragHintPulse{0%,100%{opacity:0.75}50%{opacity:0.15}}';
     document.head.appendChild(_style);
 
     var hero = document.querySelector('.hero');
 
-    /* ── Canvas ─────────────────────────────────────────────────────────── */
+    /* ── Canvas ────────────────────────────────────────────────────────────── */
     var canvas = document.createElement('canvas');
     canvas.style.cssText =
       'position:absolute;top:0;left:0;width:100%;height:100%;' +
@@ -493,25 +492,23 @@
     function heroSize() { return { w: hero.offsetWidth, h: hero.offsetHeight }; }
     var sz = heroSize();
 
-    /* ── Renderer ────────────────────────────────────────────────────────── */
+    /* ── Renderer ──────────────────────────────────────────────────────────── */
     var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(sz.w, sz.h);
-    renderer.setClearColor(0x030008, 1);
+    renderer.setClearColor(0x030d1a, 1);
 
     var scene  = new THREE.Scene();
     var camera = new THREE.PerspectiveCamera(52, sz.w / sz.h, 0.1, 600);
     camera.position.set(0, 5, 32);
     camera.lookAt(0, 0, 0);
 
-    /* Ambient light — base illumination for MeshPhongMaterial */
-    scene.add(new THREE.AmbientLight(0x111133, 1.6));
-
-    /* ══════════════════════════════════════════════════════════════════════
-       GALAXY BACKGROUND — dense Milky Way + purple/blue nebula
-    ══════════════════════════════════════════════════════════════════════ */
-    var starLayerPts = [];
-    var twinkleMat   = null;
+    /* ══════════════════════════════════════════════════════════════════════════
+       GALAXY BACKGROUND
+       Three star-size tiers + two nebula clusters for depth and colour
+    ══════════════════════════════════════════════════════════════════════════ */
+    var starLayerPts = [];     // Points objects for parallax rotation
+    var twinkleMat   = null;   // Large-star material — opacity animated for twinkle
 
     function makeStarLayer(count, size, opacity, rMin, rMax, additive) {
       var buf = new Float32Array(count * 3);
@@ -536,20 +533,22 @@
       return { pts: pts, mat: mat };
     }
 
-    /* Three size tiers for depth */
-    makeStarLayer(560, 0.10, 0.36, 190, 290);
-    makeStarLayer(300, 0.22, 0.55, 145, 220);
-    var largeStar = makeStarLayer(120, 0.46, 0.92, 105, 170, true);
+    /* Tiny distant stars */
+    makeStarLayer(420, 0.13, 0.42, 170, 260);
+    /* Medium stars */
+    makeStarLayer(220, 0.28, 0.62, 130, 200);
+    /* Large bright stars — twinkling material stored */
+    var largeStar = makeStarLayer(90, 0.52, 0.88, 100, 160, true);
     twinkleMat = largeStar.mat;
 
-    /* Nebula clusters — purple left, blue centre, teal accent */
+    /* Nebula: dense coloured star clusters biased to regions of the sky */
     function makeNebula(count, hexColor, opacity, ctheta, cphi, spread) {
       var buf = new Float32Array(count * 3);
       for (var i = 0; i < count; i++) {
         var th = ctheta + (Math.random() - 0.5) * spread;
-        var ph = cphi   + (Math.random() - 0.5) * spread * 0.60;
+        var ph = cphi   + (Math.random() - 0.5) * spread * 0.65;
         ph = Math.max(0.05, Math.min(Math.PI - 0.05, ph));
-        var r = 145 + Math.random() * 105;
+        var r = 130 + Math.random() * 90;
         buf[i*3]   = r * Math.sin(ph) * Math.cos(th);
         buf[i*3+1] = r * Math.sin(ph) * Math.sin(th);
         buf[i*3+2] = r * Math.cos(ph);
@@ -557,7 +556,7 @@
       var geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(buf, 3));
       var pts = new THREE.Points(geo, new THREE.PointsMaterial({
-        color: hexColor, size: 0.30, sizeAttenuation: true,
+        color: hexColor, size: 0.35, sizeAttenuation: true,
         transparent: true, opacity: opacity,
         depthWrite: false, blending: THREE.AdditiveBlending
       }));
@@ -566,35 +565,25 @@
       return pts;
     }
 
-    makeNebula(240, 0x6622cc, 0.30, -0.85, 0.65, 1.4);  /* purple — upper left  */
-    makeNebula(200, 0x2244dd, 0.22,  0.40, 1.10, 1.2);  /* blue — centre right  */
-    makeNebula(140, 0x00aabb, 0.14,  0.90, 2.20, 0.9);  /* teal accent          */
+    /* Deep purple nebula — upper-left sky quadrant */
+    makeNebula(180, 0x8833dd, 0.22,  -0.85, 0.65, 1.2);
+    /* Deep teal nebula — lower-right sky quadrant */
+    makeNebula(150, 0x00ddaa, 0.16,   0.90, 2.20, 1.0);
 
-    /* ══════════════════════════════════════════════════════════════════════
-       ANIMATED SUN CORE  (heartbeat period = 2.0 s)
-    ══════════════════════════════════════════════════════════════════════ */
+    /* ══════════════════════════════════════════════════════════════════════════
+       ANIMATED SUN CORE
+       ① Sphere with flickering warm-white/orange surface colour
+       ② Three glow shells (orange → deep-orange → dark-red) with ripple delay
+       ③ Eight corona spike cones in a slow-rotating group
+       ④ PointLight that pulses with the heartbeat
+    ══════════════════════════════════════════════════════════════════════════ */
 
-    /* Cardiac piecewise function — systole / fall / diastolic notch / rest */
-    function heartbeat(t) {
-      var period = 2.0;
-      var p = ((t % period) + period) % period / period;
-      if (p < 0.05) {
-        return Math.sin(p / 0.05 * Math.PI * 0.5);
-      } else if (p < 0.13) {
-        return 1.0 - 0.72 * (p - 0.05) / 0.08;
-      } else if (p < 0.21) {
-        return 0.28 + 0.22 * Math.sin((p - 0.13) / 0.08 * Math.PI);
-      } else {
-        return 0.28 * Math.exp(-5.5 * (p - 0.21));
-      }
-    }
-
-    /* Main sun sphere — surface colour animated per frame */
+    /* ① Main sun sphere — colour animated each frame */
     var sunMat  = new THREE.MeshBasicMaterial({ color: 0xfff7a0 });
-    var sunMesh = new THREE.Mesh(new THREE.SphereGeometry(1.0, 32, 32), sunMat);
+    var sunMesh = new THREE.Mesh(new THREE.SphereGeometry(0.68, 32, 32), sunMat);
     scene.add(sunMesh);
 
-    /* Layered glow shells */
+    /* ② Glow shells */
     function glowShell(radius, hex, opacity) {
       var mat  = new THREE.MeshBasicMaterial({
         color: hex, transparent: true, opacity: opacity,
@@ -606,139 +595,89 @@
     }
 
     var SHELLS = [
-      glowShell(1.95, 0xff6b00, 0.30),
-      glowShell(3.30, 0xcc3300, 0.18),
-      glowShell(5.40, 0x660000, 0.09),
-      glowShell(8.00, 0x1a0000, 0.04)
+      glowShell(1.30, 0xff6b00, 0.30),   // inner orange
+      glowShell(2.20, 0xcc3300, 0.20),   // middle deep-orange
+      glowShell(3.60, 0x660000, 0.10),   // outer dark-red
+      glowShell(5.40, 0x2a0000, 0.05),   // far corona haze
     ];
 
-    /* Eight corona spikes in a slowly rotating group */
+    /* ③ Corona spikes — 8 thin cones arranged radially, in a rotating group */
     var spikeGroup = new THREE.Group();
     scene.add(spikeGroup);
+
     var spikeMats = [];
     var SPIKE_N   = 8;
     for (var si = 0; si < SPIKE_N; si++) {
       var sAngle = (si / SPIKE_N) * Math.PI * 2;
-      var sLen   = 1.50 + (si % 3) * 0.52;
+      var sLen   = 1.05 + (si % 3) * 0.38;  // lengths cycle 1.05 / 1.43 / 1.81
       var sMat   = new THREE.MeshBasicMaterial({
-        color: (si % 2 === 0) ? 0xffcc22 : 0xff8800,
-        transparent: true, opacity: 0.52 - si * 0.02,
-        depthWrite: false, blending: THREE.AdditiveBlending
+        color: (si % 2 === 0) ? 0xffcc22 : 0xff7700,
+        transparent: true,
+        opacity: 0.52 - si * 0.02,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
       });
       spikeMats.push(sMat);
+
+      /* ConeGeometry: tip at +Y·(sLen/2), base at −Y·(sLen/2).
+         Group rotated so local +Y points outward at sAngle in the XY plane.
+         Cone translated so its base sits at the sun surface (r ≈ 0.68). */
       var sGrp  = new THREE.Group();
       sGrp.rotation.z = sAngle - Math.PI / 2;
-      var sCone = new THREE.Mesh(new THREE.ConeGeometry(0.062, sLen, 4, 1), sMat);
-      sCone.position.y = sLen / 2 + 1.03;
+      var sCone = new THREE.Mesh(new THREE.ConeGeometry(0.055, sLen, 4, 1), sMat);
+      sCone.position.y = sLen / 2 + 0.70;
       sGrp.add(sCone);
       spikeGroup.add(sGrp);
     }
 
-    /* PointLight — warm orange, intense, pulses with heartbeat */
-    var sunLight = new THREE.PointLight(0xff9933, 2.0, 55);
-    scene.add(sunLight);
+    /* ④ PointLight — warm orange, pulses with heartbeat */
+    var sunLight = new THREE.PointLight(0xff9933, 1.0, 30);
+    scene.add(sunLight);   /* position stays at origin (0,0,0) */
 
-    /* ══════════════════════════════════════════════════════════════════════
-       THREE ORBITING SHAPES — MeshPhongMaterial
-       Compliance  : double torus, cyan
-       Sustainability : icosahedron detail=4, green
-       Assurance   : dodecahedron, purple glassy
-    ══════════════════════════════════════════════════════════════════════ */
-
-    function phongMesh(geo, hex, emissiveHex, shininess, opacity) {
-      return new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
-        color: hex, emissive: emissiveHex, shininess: shininess,
-        transparent: true, opacity: opacity, depthWrite: false,
-        side: THREE.DoubleSide
-      }));
-    }
-
-    function wireMeshOverlay(geo, hex, opacity) {
+    /* ══════════════════════════════════════════════════════════════════════════
+       THREE ORBITING CELESTIAL BODIES  (2× previous size)
+       Triangle formation: 0°, 120°, 240° starting angles
+       Modest orbital tilts so all three stay within viewport at all times.
+    ══════════════════════════════════════════════════════════════════════════ */
+    function wireMesh(geo, hex) {
       return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-        color: hex, wireframe: true, transparent: true, opacity: opacity,
+        color: hex, wireframe: true, transparent: true, opacity: 0.85,
         blending: THREE.AdditiveBlending, depthWrite: false
       }));
     }
 
-    /* Compliance — outer + inner torus, inner tilted 90° for depth */
-    function buildCompliance() {
-      var m = phongMesh(
-        new THREE.TorusGeometry(2.4, 0.40, 16, 80),
-        0x00d4ff, 0x002244, 100, 0.85
-      );
-      var inner = phongMesh(
-        new THREE.TorusGeometry(1.55, 0.22, 12, 60),
-        0x00d4ff, 0x001133, 80, 0.62
-      );
-      inner.rotation.x = Math.PI / 2;
-      m.add(inner);
-      return m;
-    }
-
-    /* Sustainability — dense icosahedron + wireframe overlay */
-    function buildSustainability() {
-      var m = phongMesh(
-        new THREE.IcosahedronGeometry(2.2, 4),
-        0x00ff88, 0x003322, 60, 0.78
-      );
-      m.add(wireMeshOverlay(new THREE.IcosahedronGeometry(2.22, 2), 0x00ff88, 0.28));
-      return m;
-    }
-
-    /* Assurance — dodecahedron, glassy purple + wireframe */
-    function buildAssurance() {
-      var m = phongMesh(
-        new THREE.DodecahedronGeometry(2.4, 0),
-        0xa78bfa, 0x1a0035, 200, 0.70
-      );
-      m.add(wireMeshOverlay(new THREE.DodecahedronGeometry(2.42, 0), 0xa78bfa, 0.26));
-      return m;
-    }
-
     var ELS = [
       {
-        name: 'Compliance',    color: 0x00d4ff, colorCSS: '#00d4ff',
-        mesh: buildCompliance(),
-        orbitR: 6.6, orbitSpeed:  0.080, orbitAngle: 0,
-        incX:  0.16, incY:  0.10, selfSpinX: 0.006, selfSpinY: 0.004,
-        baseOpacity: 0.85,
-        dragMsgs: ['Compliance holds the line.', 'Risk never sleeps.', 'Controls protect what matters.']
+        name: 'Compliance', color: 0x00d4ff, colorCSS: '#00d4ff',
+        mesh: wireMesh(new THREE.TorusGeometry(3.10, 0.24, 10, 64), 0x00d4ff),
+        orbitR: 6.8, orbitSpeed: 0.080, orbitAngle: 0,
+        incX: 0.18, incY: 0.12, selfSpinX: 0.008, selfSpinY: 0.005
       },
       {
         name: 'Sustainability', color: 0x00ff88, colorCSS: '#00ff88',
-        mesh: buildSustainability(),
-        orbitR: 6.2, orbitSpeed:  0.065, orbitAngle: Math.PI * 2 / 3,
-        incX: -0.24, incY:  0.34, selfSpinX: 0.004, selfSpinY: 0.009,
-        baseOpacity: 0.78,
-        dragMsgs: ['Sustainability is systemic.', 'Long horizons demand short-term discipline.', 'Governance builds resilience.']
+        mesh: wireMesh(new THREE.SphereGeometry(2.80, 12, 12), 0x00ff88),
+        orbitR: 6.4, orbitSpeed: 0.065, orbitAngle: Math.PI * 2 / 3,
+        incX: -0.26, incY: 0.38, selfSpinX: 0.005, selfSpinY: 0.010
       },
       {
-        name: 'Assurance',     color: 0xa78bfa, colorCSS: '#a78bfa',
-        mesh: buildAssurance(),
-        orbitR: 7.0, orbitSpeed: -0.088, orbitAngle: Math.PI * 4 / 3,
-        incX:  0.30, incY: -0.18, selfSpinX: 0.007, selfSpinY: 0.006,
-        baseOpacity: 0.70,
-        dragMsgs: ['Assurance is earned daily.', 'Trust is verified, not assumed.', 'Oversight underpins confidence.']
+        name: 'Assurance', color: 0xa78bfa, colorCSS: '#a78bfa',
+        mesh: wireMesh(new THREE.OctahedronGeometry(3.20, 1), 0xa78bfa),
+        orbitR: 7.2, orbitSpeed: -0.090, orbitAngle: Math.PI * 4 / 3,
+        incX: 0.35, incY: -0.20, selfSpinX: 0.007, selfSpinY: 0.008
       }
     ];
 
     ELS.forEach(function (el) { scene.add(el.mesh); });
 
-    /* Per-shape PointLights — follow each shape each frame */
-    ELS.forEach(function (el) {
-      el.light = new THREE.PointLight(el.color, 1.4, 22);
-      scene.add(el.light);
-    });
-
-    /* Invisible hit-proxy spheres (children of mesh) for raycasting */
+    /* Invisible hit-proxy spheres — larger to match new shape scale */
     ELS.forEach(function (el) {
       el.mesh.add(new THREE.Mesh(
-        new THREE.SphereGeometry(4.0, 8, 8),
+        new THREE.SphereGeometry(4.5, 8, 8),
         new THREE.MeshBasicMaterial({ visible: false, depthWrite: false })
       ));
     });
 
-    /* ── Connection lines ──────────────────────────────────────────────── */
+    /* ── Connection lines ──────────────────────────────────────────────────── */
     var connGeos = ELS.map(function () {
       var geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
@@ -746,19 +685,19 @@
     });
     var connMats = ELS.map(function (el) {
       return new THREE.LineBasicMaterial({
-        color: el.color, transparent: true, opacity: 0.20, depthWrite: false
+        color: el.color, transparent: true, opacity: 0.25, depthWrite: false
       });
     });
     connGeos.forEach(function (geo, i) { scene.add(new THREE.Line(geo, connMats[i])); });
 
-    /* ── Flow particles ────────────────────────────────────────────────── */
-    var FLOW_N = 10, FLOW_SPEED = 0.18;
+    /* ── Flow particles ────────────────────────────────────────────────────── */
+    var FLOW_N = 9, FLOW_SPEED = 0.20;
     var flowSystems = ELS.map(function (el) {
       var buf = new Float32Array(FLOW_N * 3);
       var geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(buf, 3));
       scene.add(new THREE.Points(geo, new THREE.PointsMaterial({
-        color: el.color, size: 0.26, sizeAttenuation: true,
+        color: el.color, size: 0.30, sizeAttenuation: true,
         transparent: true, opacity: 0.82,
         depthWrite: false, blending: THREE.AdditiveBlending
       })));
@@ -767,26 +706,26 @@
       return { geo: geo, buf: buf, phases: phases };
     });
 
-    /* ── Cyan perspective horizon grid ─────────────────────────────────── */
+    /* ── Horizon grid ──────────────────────────────────────────────────────── */
     (function () {
-      var verts = [], cols = [], W = 92, D = 74, xN = 28, zN = 22, cg = 0.80, cb = 1.0;
+      var verts = [], cols = [], W = 84, D = 70, xN = 26, zN = 22, cg = 0.831, cb = 1.0;
       for (var xi = 0; xi <= xN; xi++) {
         var x  = -W/2 + (W/xN)*xi;
-        var ef = Math.max(0, 1.10 - Math.abs(x)/(W/2));
-        verts.push(x,0,0);  cols.push(0, cg*ef*0.32, cb*ef*0.32);
-        verts.push(x,0,-D); cols.push(0, 0, 0);
+        var ef = Math.max(0, 1.12 - Math.abs(x)/(W/2));
+        verts.push(x,0,0); cols.push(0,cg*ef*0.4,cb*ef*0.4);
+        verts.push(x,0,-D); cols.push(0,0,0);
       }
       for (var zi = 0; zi <= zN; zi++) {
         var z  = -(D/zN)*zi;
-        var df = Math.pow(Math.max(0, 1 - zi/zN), 1.5) * 0.36;
-        verts.push(-W/2,0,z); cols.push(0, cg*df, cb*df);
-        verts.push( W/2,0,z); cols.push(0, cg*df, cb*df);
+        var df = Math.pow(Math.max(0,1-zi/zN), 1.5)*0.40;
+        verts.push(-W/2,0,z); cols.push(0,cg*df,cb*df);
+        verts.push( W/2,0,z); cols.push(0,cg*df,cb*df);
       }
       var geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
       geo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(cols),  3));
       var grid = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
-        vertexColors: true, transparent: true, opacity: 0.36,
+        vertexColors: true, transparent: true, opacity: 0.40,
         depthWrite: false, blending: THREE.AdditiveBlending
       }));
       grid.position.set(0, -14, 10);
@@ -794,50 +733,37 @@
       scene.add(grid);
     }());
 
-    /* ══════════════════════════════════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════════════
        HTML OVERLAYS
-    ══════════════════════════════════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════════════ */
     var FONT = "'Inter', system-ui, -apple-system, sans-serif";
 
-    /* Shape name labels — Inter 13px, 600, letter-spacing 0.15em */
+    /* Shape name labels */
     var labelDivs = ELS.map(function (el) {
       var div = document.createElement('div');
       div.style.cssText = [
         'position:absolute', 'pointer-events:none', 'z-index:2',
-        'font-family:' + FONT, 'font-size:13px', 'font-weight:600',
-        'letter-spacing:0.15em', 'text-transform:uppercase', 'text-align:center',
+        'font-family:' + FONT, 'font-size:0.82rem', 'font-weight:600',
+        'letter-spacing:0.08em', 'text-transform:uppercase', 'text-align:center',
         'color:' + el.colorCSS,
-        'text-shadow:0 0 12px ' + el.colorCSS + ',0 0 32px ' + el.colorCSS + '55',
-        'transform:translate(-50%,-100%)', 'white-space:nowrap', 'line-height:1.6'
+        'text-shadow:0 0 10px ' + el.colorCSS + ',0 0 30px ' + el.colorCSS + '55',
+        'transform:translate(-50%,-100%)', 'white-space:nowrap', 'line-height:1.5'
       ].join(';');
       div.textContent = el.name;
       hero.appendChild(div);
       return div;
     });
 
-    /* Vertical connector lines — gradient from element colour to transparent */
-    var connectorDivs = ELS.map(function (el) {
-      var div = document.createElement('div');
-      div.style.cssText = [
-        'position:absolute', 'pointer-events:none', 'z-index:2',
-        'width:1px',
-        'background:linear-gradient(' + el.colorCSS + 'cc,' + el.colorCSS + '00)',
-        'transform:translateX(-50%)'
-      ].join(';');
-      hero.appendChild(div);
-      return div;
-    });
-
-    /* Drag-hint labels — pulsing, fade on first drag */
+    /* "Drag me" hint labels — pulsing, fade out after first drag */
     var anyDragHappened = false;
     var dragHintDivs = ELS.map(function (el) {
       var div = document.createElement('div');
       div.style.cssText = [
         'position:absolute', 'pointer-events:none', 'z-index:2',
-        'font-family:' + FONT, 'font-size:10px', 'font-weight:500',
-        'letter-spacing:0.12em', 'text-transform:uppercase', 'text-align:center',
+        'font-family:' + FONT, 'font-size:0.60rem', 'font-weight:500',
+        'letter-spacing:0.08em', 'text-transform:uppercase', 'text-align:center',
         'color:' + el.colorCSS,
-        'text-shadow:0 0 8px ' + el.colorCSS,
+        'text-shadow:0 0 6px ' + el.colorCSS,
         'transform:translate(-50%,0)', 'white-space:nowrap',
         'animation:dragHintPulse 2.4s ease-in-out infinite',
         'transition:opacity 0.9s ease'
@@ -847,31 +773,30 @@
       return div;
     });
 
-    /* Cycling philosophical messages — 18px white Inter, near core */
+    /* Cycling domain messages — near core */
     var MESSAGES = [
-      'Risk managed today is opportunity protected tomorrow.',
-      'Compliance is not a constraint \u2014 it is the architecture of trust.',
-      'Quality assurance is the discipline of believing in better.',
-      'Sustainability begins where accountability ends.',
-      'Every control is a promise made to the future.',
-      'Governance without purpose is bureaucracy.',
-      'The second line of defence is the conscience of the first.'
+      '2nd Line of Defence', 'Design Effectiveness', 'Operational Effectiveness',
+      'Conduct Risk', 'Internal Controls Testing', 'FDCPA | CFPB Compliance', 'RCSA | AML | KYC'
     ];
     var msgDiv = document.createElement('div');
     msgDiv.style.cssText = [
       'position:absolute', 'pointer-events:none', 'z-index:2',
-      'font-family:' + FONT, 'font-size:18px', 'font-weight:400',
-      'letter-spacing:0.02em', 'text-align:center',
-      'color:#ffffff',
-      'text-shadow:0 0 24px rgba(160,180,255,0.55)',
-      'transform:translate(-50%,0)', 'white-space:normal',
-      'max-width:500px', 'line-height:1.55',
-      'transition:opacity 0.6s ease', 'opacity:1'
+      'font-family:' + FONT, 'font-size:1.05rem', 'font-weight:500',
+      'letter-spacing:0.07em', 'text-transform:uppercase', 'text-align:center',
+      'color:#b8d8ff',
+      'text-shadow:0 0 16px #5599ff66, 0 0 40px #2255ff33',
+      'transform:translate(-50%,0)', 'white-space:nowrap',
+      'transition:opacity 0.5s ease', 'opacity:1'
     ].join(';');
     msgDiv.textContent = MESSAGES[0];
     hero.appendChild(msgDiv);
 
-    /* Drag resistance message — large, element-coloured, backlit */
+    /* Drag resistance message — large, backlit, element-coloured */
+    var DRAG_MSGS = [
+      'Compliance holds the line.',
+      'Risk never sleeps.',
+      'Controls protect what matters.'
+    ];
     var dragMsgDiv = document.createElement('div');
     dragMsgDiv.style.cssText = [
       'position:absolute', 'pointer-events:none', 'z-index:3',
@@ -880,11 +805,11 @@
       'left:50%', 'top:50%', 'transform:translate(-50%,-50%)',
       'white-space:nowrap', 'transition:opacity 0.25s ease', 'opacity:0',
       'padding:0.85rem 2.2rem', 'border-radius:10px',
-      'background:rgba(2,0,12,0.82)'
+      'background:rgba(2,7,18,0.78)'
     ].join(';');
     hero.appendChild(dragMsgDiv);
 
-    /* ── Orbit position ──────────────────────────────────────────────────── */
+    /* ── Orbit position calculator ─────────────────────────────────────────── */
     function orbitPos(el, t) {
       var a    = el.orbitAngle + el.orbitSpeed * t;
       var bx   = el.orbitR * Math.cos(a);
@@ -896,13 +821,13 @@
       return { x: bx*cosY + z1*sinY, y: y1, z: -bx*sinY + z1*cosY };
     }
 
-    /* ── 3D world → hero-div screen coords ─────────────────────────────── */
+    /* ── Project 3D world → hero-div screen coords ─────────────────────────── */
     function toScreen(wx, wy, wz) {
       var v = new THREE.Vector3(wx, wy, wz).project(camera);
       return { x: (v.x * 0.5 + 0.5) * sz.w, y: (-v.y * 0.5 + 0.5) * sz.h };
     }
 
-    /* ── Per-element interaction state ──────────────────────────────────── */
+    /* ── Per-element interaction state ─────────────────────────────────────── */
     var elState = ELS.map(function () {
       return {
         hoverT:       0,
@@ -919,13 +844,13 @@
     var raycaster  = new THREE.Raycaster();
     var mouse      = new THREE.Vector2(9999, 9999);
 
-    /* ── Message cycling ─────────────────────────────────────────────────── */
+    /* ── Message cycling state ─────────────────────────────────────────────── */
     var msgIdx   = 0;
     var msgPhase = 'visible';
     var msgTimer = 0;
-    var MSG_SHOW = 3.2, MSG_FADE = 0.6;
+    var MSG_SHOW = 2.8, MSG_FADE = 0.5;
 
-    /* ── Mouse utilities ─────────────────────────────────────────────────── */
+    /* ── Mouse utilities ───────────────────────────────────────────────────── */
     function heroNDC(e) {
       var r = hero.getBoundingClientRect();
       return new THREE.Vector2(
@@ -962,16 +887,17 @@
       var idx = resolveIdx(hits[0].object);
       if (idx < 0) return;
 
+      /* Fade out drag hints on first successful drag */
       if (!anyDragHappened) {
         anyDragHappened = true;
         dragHintDivs.forEach(function (d) {
-          d.style.opacity   = '0';
-          d.style.animation = 'none';
+          d.style.opacity    = '0';
+          d.style.animation  = 'none';
         });
       }
 
       dragElIdx = idx;
-      var st = elState[idx];
+      var st    = elState[idx];
       st.dragging     = true;
       st.springActive = true;
       st.springPos.copy(ELS[idx].mesh.position);
@@ -983,11 +909,12 @@
       raycaster.ray.intersectPlane(dragPlane, hitPt);
       dragOffset.copy(hitPt).sub(ELS[idx].mesh.position);
 
-      var col  = ELS[idx].colorCSS;
-      var msgs = ELS[idx].dragMsgs;
-      dragMsgDiv.textContent   = msgs[Math.floor(Math.random() * msgs.length)];
+      /* Drag message with element's own colour */
+      var col = ELS[idx].colorCSS;
+      dragMsgDiv.textContent   = DRAG_MSGS[Math.floor(Math.random() * DRAG_MSGS.length)];
       dragMsgDiv.style.color   = col;
-      dragMsgDiv.style.textShadow = '0 0 22px ' + col + ', 0 0 55px ' + col + '55';
+      dragMsgDiv.style.textShadow =
+        '0 0 22px ' + col + ', 0 0 55px ' + col + '55';
       dragMsgDiv.style.opacity = '1';
       hero.style.cursor = 'grabbing';
     });
@@ -1001,9 +928,27 @@
       }
     });
 
-    /* ══════════════════════════════════════════════════════════════════════
+    /* ══════════════════════════════════════════════════════════════════════════
        ANIMATION LOOP
-    ══════════════════════════════════════════════════════════════════════ */
+    ══════════════════════════════════════════════════════════════════════════ */
+
+    /* ── Cardiac heartbeat easing ───────────────────────────────────────────
+       Returns 0..1 with a realistic systole-diastole-rest shape.
+       Period = 1.4 s.  Each glow shell receives a delayed copy for ripple.  */
+    function heartbeat(t) {
+      var period = 1.4;
+      var p = ((t % period) + period) % period / period;  /* 0..1, safe for –t */
+      if (p < 0.06) {
+        /* Systolic rise  */  return Math.sin(p / 0.06 * Math.PI * 0.5);
+      } else if (p < 0.14) {
+        /* Systolic fall  */  return 1.0 - 0.75 * (p - 0.06) / 0.08;
+      } else if (p < 0.22) {
+        /* Diastolic notch*/  return 0.25 + 0.25 * Math.sin((p - 0.14) / 0.08 * Math.PI);
+      } else {
+        /* Diastolic rest */  return 0.25 * Math.exp(-6.0 * (p - 0.22));
+      }
+    }
+
     var clock       = new THREE.Clock();
     var prevT       = 0;
     var SPRING_K    = 6.0;
@@ -1016,50 +961,57 @@
       var dt = Math.min(t - prevT, 0.05);
       prevT  = t;
 
-      /* Star twinkle + parallax rotation */
+      /* ── Star twinkle: animate large-star layer opacity ── */
       twinkleMat.opacity = 0.65 + 0.35 * Math.abs(Math.sin(t * 0.65));
+
+      /* ── Parallax: very slow differential rotation of star layers ── */
       starLayerPts[0].rotation.y = t * 0.00070;
       starLayerPts[1].rotation.y = t * 0.00050;
       starLayerPts[2].rotation.y = t * 0.00035;
 
-      /* Heartbeat pulses — staggered for shell ripple */
-      var beat0 = heartbeat(t);
-      var beat1 = heartbeat(t - 0.11);
-      var beat2 = heartbeat(t - 0.22);
-      var beat3 = heartbeat(t - 0.33);
+      /* ── Animated sun: heartbeat + surface flicker ── */
 
-      /* Surface flicker — three incommensurable sines */
-      var _f = 0.50
+      /* Four beat phases — each shell gets a delayed copy (ripple shockwave) */
+      var beat0 = heartbeat(t);
+      var beat1 = heartbeat(t - 0.09);
+      var beat2 = heartbeat(t - 0.18);
+      var beat3 = heartbeat(t - 0.27);
+
+      /* Surface flicker: three incommensurable sine waves → pseudo-random heat */
+      var _flicker = 0.50
         + 0.28 * Math.sin(t *  8.31)
         + 0.14 * Math.sin(t * 13.71)
         + 0.08 * Math.sin(t * 20.97);
-      var heat = Math.max(0.05, Math.min(0.95, _f));
+      var heat = Math.max(0.05, Math.min(0.95, _flicker));
+
+      /* Interpolate surface colour #fff7a0 (cool) → #ff8800 (hot) */
       sunMat.color.setRGB(1.0, (247 - 111 * heat) / 255, (160 - 160 * heat) / 255);
 
-      /* Sun sphere scale */
-      sunMesh.scale.setScalar(1.0 + 0.17 * beat0);
+      /* Sun sphere: systolic scale expansion */
+      sunMesh.scale.setScalar(1.0 + 0.18 * beat0);
 
-      /* Shell ripple */
-      SHELLS[0].mesh.scale.setScalar(1.0 + 0.13 * beat1);
-      SHELLS[1].mesh.scale.setScalar(1.0 + 0.10 * beat2);
-      SHELLS[2].mesh.scale.setScalar(1.0 + 0.07 * beat3);
+      /* Glow shells: ripple outward with staggered delay */
+      SHELLS[0].mesh.scale.setScalar(1.0 + 0.14 * beat1);
+      SHELLS[1].mesh.scale.setScalar(1.0 + 0.11 * beat2);
+      SHELLS[2].mesh.scale.setScalar(1.0 + 0.08 * beat3);
       SHELLS[3].mesh.scale.setScalar(1.0 + 0.05 * beat3);
-      SHELLS[0].mat.opacity = 0.30 + 0.17 * beat1;
-      SHELLS[1].mat.opacity = 0.18 + 0.13 * beat2;
-      SHELLS[2].mat.opacity = 0.09 + 0.07 * beat3;
-      SHELLS[3].mat.opacity = 0.04 + 0.04 * beat3;
 
-      /* Spikes */
-      spikeGroup.rotation.z = t * 0.038;
+      SHELLS[0].mat.opacity = 0.30 + 0.18 * beat1;
+      SHELLS[1].mat.opacity = 0.20 + 0.13 * beat2;
+      SHELLS[2].mat.opacity = 0.10 + 0.08 * beat3;
+      SHELLS[3].mat.opacity = 0.05 + 0.04 * beat3;
+
+      /* Corona spikes: slow rotation + beat-driven brightness */
+      spikeGroup.rotation.z = t * 0.040;
       spikeMats.forEach(function (mat, i) {
-        mat.opacity = (0.52 - i * 0.02) * (0.55 + 0.55 * beat0);
+        mat.opacity = (0.52 - i * 0.02) * (0.60 + 0.55 * beat0);
       });
 
-      /* Core PointLight pulse */
-      sunLight.intensity = 0.8 + 2.8 * beat0;
+      /* PointLight: pulse intensity to simulate radiated warmth */
+      sunLight.intensity = 0.6 + 2.2 * beat0;
 
-      /* Hover detection */
-      var anyDrag  = elState.some(function (s) { return s.dragging; });
+      /* ── Hover detection ── */
+      var anyDrag = elState.some(function (s) { return s.dragging; });
       var hoverIdx = -1;
       if (!anyDrag) {
         raycaster.setFromCamera(mouse, camera);
@@ -1068,13 +1020,13 @@
         hero.style.cursor = hoverIdx >= 0 ? 'grab' : '';
       }
 
-      /* Per-element update */
+      /* ── Per-element update ── */
       ELS.forEach(function (el, idx) {
         var st     = elState[idx];
         var orb    = orbitPos(el, t);
         var orbVec = new THREE.Vector3(orb.x, orb.y, orb.z);
 
-        /* Spring-back to orbit after release */
+        /* Spring-back toward orbit after release */
         if (st.springActive && !st.dragging) {
           var diff = new THREE.Vector3().subVectors(orbVec, st.springPos);
           st.springVel.addScaledVector(diff, SPRING_K * dt);
@@ -1093,27 +1045,24 @@
         el.mesh.rotation.x += el.selfSpinX;
         el.mesh.rotation.y += el.selfSpinY;
 
-        /* Per-shape PointLight follows shape */
-        el.light.position.copy(st.springPos);
-
-        /* Hover glow — blend material opacity */
+        /* Hover glow + subtle beat-driven brightening (simulates core light pulse) */
         st.hoverT += ((idx === hoverIdx ? 1 : 0) - st.hoverT) * Math.min(1, dt * 6);
-        el.mesh.material.opacity = el.baseOpacity + st.hoverT * 0.13 + beat0 * 0.05;
+        el.mesh.material.opacity = 0.80 + st.hoverT * 0.18 + beat0 * 0.08;
 
-        /* Connection line */
+        /* Connection line colour and opacity */
         if (st.dragging) {
           connMats[idx].color.setHex(0xff3333);
-          connMats[idx].opacity = 0.72;
+          connMats[idx].opacity = 0.65;
         } else {
           connMats[idx].color.setHex(el.color);
-          connMats[idx].opacity = 0.20 + st.hoverT * 0.18 + beat0 * 0.06;
+          connMats[idx].opacity = 0.25 + st.hoverT * 0.15 + beat0 * 0.07;
         }
         var ca = connGeos[idx].attributes.position.array;
         ca[0]=0; ca[1]=0; ca[2]=0;
         ca[3]=st.springPos.x; ca[4]=st.springPos.y; ca[5]=st.springPos.z;
         connGeos[idx].attributes.position.needsUpdate = true;
 
-        /* Flow particles — stream from centre to shape */
+        /* Flow particles: centre → element */
         var fs = flowSystems[idx];
         for (var j = 0; j < FLOW_N; j++) {
           var ph = (fs.phases[j] + t * FLOW_SPEED) % 1.0;
@@ -1123,28 +1072,20 @@
         }
         fs.geo.attributes.position.needsUpdate = true;
 
-        /* HTML label — positioned above shape */
-        var labelAnchorY = st.springPos.y + 4.0;
-        var ls = toScreen(st.springPos.x, labelAnchorY, st.springPos.z);
+        /* Name label — 4.5 units above shape centre in world space */
+        var ls = toScreen(st.springPos.x, st.springPos.y + 4.5, st.springPos.z);
         labelDivs[idx].style.left = ls.x + 'px';
         labelDivs[idx].style.top  = ls.y + 'px';
 
-        /* Vertical connector — from label bottom down to shape top */
-        var shapeTop = toScreen(st.springPos.x, st.springPos.y + 0.5, st.springPos.z);
-        var connH    = Math.max(0, shapeTop.y - ls.y);
-        connectorDivs[idx].style.left   = ls.x + 'px';
-        connectorDivs[idx].style.top    = ls.y + 'px';
-        connectorDivs[idx].style.height = connH + 'px';
-
-        /* Drag hint — below shape */
+        /* Drag hint — 4.8 units below shape centre */
         if (!anyDragHappened) {
-          var hs = toScreen(st.springPos.x, st.springPos.y - 4.0, st.springPos.z);
+          var hs = toScreen(st.springPos.x, st.springPos.y - 4.8, st.springPos.z);
           dragHintDivs[idx].style.left = hs.x + 'px';
           dragHintDivs[idx].style.top  = hs.y + 'px';
         }
       });
 
-      /* Cycling messages */
+      /* ── Cycling core messages ── */
       if (msgPhase === 'visible' && t - msgTimer > MSG_SHOW) {
         msgPhase = 'out';  msgTimer = t;  msgDiv.style.opacity = '0';
       } else if (msgPhase === 'out' && t - msgTimer > MSG_FADE) {
@@ -1154,7 +1095,9 @@
       } else if (msgPhase === 'in' && t - msgTimer > MSG_FADE) {
         msgPhase = 'visible';  msgTimer = t;
       }
-      var ms = toScreen(0, -4.2, 0);
+
+      /* Message sits 3.8 units below core */
+      var ms = toScreen(0, -3.8, 0);
       msgDiv.style.left = ms.x + 'px';
       msgDiv.style.top  = ms.y + 'px';
 
@@ -1163,7 +1106,7 @@
 
     animate();
 
-    /* ── Resize ──────────────────────────────────────────────────────────── */
+    /* ── Resize ────────────────────────────────────────────────────────────── */
     window.addEventListener('resize', function () {
       sz = heroSize();
       camera.aspect = sz.w / sz.h;
